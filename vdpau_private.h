@@ -38,13 +38,14 @@ typedef struct
 {
 	cedrus_t *cedrus;
 	Display *display;
-	int screen;
+	int screen; // X screen
 	VdpPreemptionCallback *preemption_callback;
 	void *preemption_callback_context;
 	int fd;
 	int g2d_fd;
 	int osd_enabled;
 	int g2d_enabled;
+	int screen_i; // sunxi disp screen
 } device_ctx_t;
 
 typedef struct

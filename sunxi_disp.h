@@ -31,7 +31,7 @@ struct sunxi_disp
 	void (*close_osd_layer)(struct sunxi_disp *sunxi_disp);
 };
 
-struct sunxi_disp *sunxi_disp_open(int osd_enabled);
+struct sunxi_disp *sunxi_disp_open(int screen_i, int osd_enabled);
 struct sunxi_disp *sunxi_disp2_open(int osd_enabled);
 struct sunxi_disp *sunxi_disp1_5_open(int osd_enabled);
 

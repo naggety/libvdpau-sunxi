@@ -51,6 +51,17 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 
 	char *env_vdpau_osd = getenv("VDPAU_OSD");
 	char *env_vdpau_g2d = getenv("VDPAU_DISABLE_G2D");
+	char *env_vdpau_screen = getenv("VDPAU_SCREEN");
+	
+	if (env_vdpau_screen) {
+		dev->screen_i = atoi(env_vdpau_screen);
+		VDPAU_DBG("VDPAU_SCREEN set to %d", dev->screen_i);
+	}
+	else {
+		dev->screen_i = screen; // try same than X screen
+		VDPAU_DBG("VDPAU_SCREEN not set, trying screen %d", dev->screen_i);
+	}
+
 	if (env_vdpau_osd && strncmp(env_vdpau_osd, "1", 1) == 0)
 		dev->osd_enabled = 1;
 	else
@@ -71,7 +82,7 @@ VdpStatus vdp_imp_device_create_x11(Display *display,
 
 	if (!dev->g2d_enabled)
 		VDPAU_DBG("OSD enabled, using pixman");
-
+	
 	return VDP_STATUS_OK;
 }
 

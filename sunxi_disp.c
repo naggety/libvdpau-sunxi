@@ -33,6 +33,11 @@ struct sunxi_disp_private
 	int fd;
 	int video_layer;
 	int osd_layer;
+	int sc_src_width;
+	int sc_src_height;
+	int sc_width;
+	int sc_height;
+	int screen_i;
 	__disp_layer_info_t video_info;
 	__disp_layer_info_t osd_info;
 };
@@ -43,7 +48,7 @@ static void sunxi_disp_close_video_layer(struct sunxi_disp *sunxi_disp);
 static int sunxi_disp_set_osd_layer(struct sunxi_disp *sunxi_disp, int x, int y, int width, int height, output_surface_ctx_t *surface);
 static void sunxi_disp_close_osd_layer(struct sunxi_disp *sunxi_disp);
 
-struct sunxi_disp *sunxi_disp_open(int osd_enabled)
+struct sunxi_disp *sunxi_disp_open(int screen_i, int osd_enabled)
 {
 	struct sunxi_disp_private *disp = calloc(1, sizeof(*disp));
 
@@ -55,7 +60,23 @@ struct sunxi_disp *sunxi_disp_open(int osd_enabled)
 	if (ioctl(disp->fd, DISP_CMD_VERSION, &tmp) < 0)
 		goto err_version;
 
-	uint32_t args[4] = { 0, DISP_LAYER_WORK_MODE_SCALER, 0, 0 };
+	disp->screen_i = screen_i;
+
+	__disp_layer_info_t layer_info;
+	uint32_t args[4] = { disp->screen_i, 100, (uint32_t)&layer_info, 0 };
+	disp->sc_src_width  = 1;
+	disp->sc_src_height = 1;
+	disp->sc_width  = 1;
+	disp->sc_height = 1;
+	if(ioctl(disp->fd, DISP_CMD_LAYER_GET_PARA, args) >= 0 && layer_info.mode == DISP_LAYER_WORK_MODE_SCALER)
+	{
+		disp->sc_src_width  = layer_info.src_win.width;
+		disp->sc_src_height = layer_info.src_win.height;
+		disp->sc_width  = layer_info.scn_win.width;
+		disp->sc_height = layer_info.scn_win.height;
+	}
+	args[1] = DISP_LAYER_WORK_MODE_SCALER;
+	args[2] = 0;
 	disp->video_layer = ioctl(disp->fd, DISP_CMD_LAYER_REQUEST, args);
 	if (disp->video_layer == 0)
 		goto err_video_layer;
@@ -124,7 +145,7 @@ static void sunxi_disp_close(struct sunxi_disp *sunxi_disp)
 {
 	struct sunxi_disp_private *disp = (struct sunxi_disp_private *)sunxi_disp;
 
-	uint32_t args[4] = { 0, disp->video_layer, 0, 0 };
+	uint32_t args[4] = { disp->screen_i, disp->video_layer, 0, 0 };
 	ioctl(disp->fd, DISP_CMD_LAYER_CLOSE, args);
 	ioctl(disp->fd, DISP_CMD_LAYER_RELEASE, args);
 
@@ -182,10 +203,10 @@ static int sunxi_disp_set_video_layer(struct sunxi_disp *sunxi_disp, int x, int 
 	disp->video_info.src_win.y = surface->video_src_rect.y0;
 	disp->video_info.src_win.width = surface->video_src_rect.x1 - surface->video_src_rect.x0;
 	disp->video_info.src_win.height = surface->video_src_rect.y1 - surface->video_src_rect.y0;
-	disp->video_info.scn_win.x = x + surface->video_dst_rect.x0;
-	disp->video_info.scn_win.y = y + surface->video_dst_rect.y0;
-	disp->video_info.scn_win.width = surface->video_dst_rect.x1 - surface->video_dst_rect.x0;
-	disp->video_info.scn_win.height = surface->video_dst_rect.y1 - surface->video_dst_rect.y0;
+	disp->video_info.scn_win.x = x * disp->sc_width / disp->sc_src_width + surface->video_dst_rect.x0 * disp->sc_width / disp->sc_src_width;
+	disp->video_info.scn_win.y = y * disp->sc_height / disp->sc_src_height + surface->video_dst_rect.y0 * disp->sc_height / disp->sc_src_height;
+	disp->video_info.scn_win.width = (surface->video_dst_rect.x1 - surface->video_dst_rect.x0) * disp->sc_width / disp->sc_src_width;
+	disp->video_info.scn_win.height = (surface->video_dst_rect.y1 - surface->video_dst_rect.y0) * disp->sc_height / disp->sc_src_height;
 
 	if (disp->video_info.scn_win.y < 0)
 	{
@@ -197,7 +218,7 @@ static int sunxi_disp_set_video_layer(struct sunxi_disp *sunxi_disp, int x, int 
 		disp->video_info.scn_win.height -= scn_clip;
 	}
 
-	uint32_t args[4] = { 0, disp->video_layer, (unsigned long)(&disp->video_info), 0 };
+	uint32_t args[4] = { disp->screen_i, disp->video_layer, (unsigned long)(&disp->video_info), 0 };
 	ioctl(disp->fd, DISP_CMD_LAYER_SET_PARA, args);
 
 	ioctl(disp->fd, DISP_CMD_LAYER_OPEN, args);
@@ -230,7 +251,7 @@ static void sunxi_disp_close_video_layer(struct sunxi_disp *sunxi_disp)
 {
 	struct sunxi_disp_private *disp = (struct sunxi_disp_private *)sunxi_disp;
 
-	uint32_t args[4] = { 0, disp->video_layer, 0, 0 };
+	uint32_t args[4] = { disp->screen_i, disp->video_layer, 0, 0 };
 	ioctl(disp->fd, DISP_CMD_LAYER_CLOSE, args);
 }
 
@@ -261,7 +282,7 @@ static int sunxi_disp_set_osd_layer(struct sunxi_disp *sunxi_disp, int x, int y,
 	disp->osd_info.scn_win.width = min_nz(width, surface->rgba.dirty.x1) - surface->rgba.dirty.x0;
 	disp->osd_info.scn_win.height = min_nz(height, surface->rgba.dirty.y1) - surface->rgba.dirty.y0;
 
-	uint32_t args[4] = { 0, disp->osd_layer, (unsigned long)(&disp->osd_info), 0 };
+	uint32_t args[4] = { disp->screen_i, disp->osd_layer, (unsigned long)(&disp->osd_info), 0 };
 	ioctl(disp->fd, DISP_CMD_LAYER_SET_PARA, args);
 
 	ioctl(disp->fd, DISP_CMD_LAYER_OPEN, args);
@@ -273,6 +294,6 @@ static void sunxi_disp_close_osd_layer(struct sunxi_disp *sunxi_disp)
 {
 	struct sunxi_disp_private *disp = (struct sunxi_disp_private *)sunxi_disp;
 
-	uint32_t args[4] = { 0, disp->osd_layer, 0, 0 };
+	uint32_t args[4] = { disp->screen_i, disp->osd_layer, 0, 0 };
 	ioctl(disp->fd, DISP_CMD_LAYER_CLOSE, args);
 }

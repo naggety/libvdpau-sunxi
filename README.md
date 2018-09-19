@@ -50,8 +50,20 @@ $ export VDPAU_DISABLE_G2D=1
 
 If using G2D (A10/A20), make sure to have write access to `/dev/g2d`.
 
+# Play video on second screen
+
+Because X video driver is baypassed and own disp layers are directly used, physical screen number must be specified using VDPAU_SCREEN env var. If VDPAU_SCREEN is not specified, the same screen number than the one used by the X server will be used.
+
+This is enough for the most common Xorg configurations:
+
+* 1 screen: Xorg screen 0 is physical screen 0
+* 2 screens: Xorg screen 0 is physical screen 0 and Xorg screen 1 is physical screen 1.
+
+If your Xorg configuration is different, you must set VDPAU_SCREEN env var to 0 or 1 (even if using extended desktop configurations, see limitations below).
+
 # Limitations:
 
 * Output bypasses X video driver by opening own disp layers. You can't use Xv from fbturbo at the same time, and on H3 the video is always on top and can't be overlapped by other windows.
 * OSD partly breaks X11 integration due to hardware limitations. The video area can't be overlapped by other windows. For fullscreen use this is no problem.
 * There is no [OpenGL interoperation feature] (https://www.opengl.org/registry/specs/NV/vdpau_interop.txt) because we are on ARM and only have OpenGL/ES available.
+* VDPAU_SCREEN must be specified if Xorg screen numbers doesn't match physical screen numbers. Also if video is played in second monitor when using a extended desktop configuration (such as Xinerama). In this case, video can't be played partially in one monitor and partially in the other.

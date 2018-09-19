@@ -55,7 +55,7 @@ VdpStatus vdp_presentation_queue_target_create_x11(VdpDevice device,
 	qt->drawable = drawable;
 	XSetWindowBackground(dev->display, drawable, 0x000102);
 
-	qt->disp = sunxi_disp_open(dev->osd_enabled);
+	qt->disp = sunxi_disp_open(dev->screen_i, dev->osd_enabled);
 
 	if (!qt->disp)
 		qt->disp = sunxi_disp2_open(dev->osd_enabled);
